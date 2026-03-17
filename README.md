@@ -29,7 +29,7 @@ Proje, sıfırdan otomasyona doğru giden, saldırganı aldatmayı ve otonom tep
 ## 🚀 Başlangıç ve Detaylı Dokümantasyon
 Laboratuvarın kavramsal mimarisini, güvenlik kilitlerinin (Guardrails) çalışma mantığını ve adım adım kurulum rotasını içeren **TAM KAPSAMLI UYGULAMA REHBERİ'ne** aşağıdaki bağlantıdan ulaşabilirsiniz:
 
-👉 **[BÜRKÜT Yol Haritası ve Mimari Dokümantasyon]([./BÜRKÜT-Yol-Haritası.md](https://github.com/mes41c/Burkut/blob/main/B%C3%9CRK%C3%9CT-Yol%20Haritas%C4%B1.md))**
+👉 **[BÜRKÜT Yol Haritası ve Mimari Dokümantasyon](./BÜRKÜT-Yol%20Haritası.md)**
 
 ---
 *Bu proje, akademik teoriyi operasyonel saha gerçekliğiyle birleştirmek amacıyla geliştirilmektedir. Kodlar ve mimari tasarımlar Apache 2.0 Lisansı ile korunmaktadır.*
