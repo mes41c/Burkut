@@ -8,7 +8,7 @@ tags:
   - wazuh
   - lab-kurulumu
   - prompt-security
-  - deception-engineering
+---
 ---
 
 # 🦅 PROJE BÜRKÜT: TAM KAPSAMLI UYGULAMA REHBERİ
@@ -31,7 +31,7 @@ tags:
 
 ### 2. Sanal Makinelerin Kurulumu ve Ağ Ayarları
 
-#### A. AĞ GEÇİDİ (pfSense Firewall)
+#### A. AĞ GEÇİDİ (pfSense Firewall - YENİ AKTÖR)
 - **OS:** pfSense (FreeBSD tabanlı, 512MB RAM, 1 vCPU).
 - **NIC 1 (WAN):** VMnet0 (NAT) - İnternete çıkış bacağı.
 - **NIC 2 (LAN):** VMnet2 (Host-Only) - İç ağ geçidi. (Statik IP: `192.168.100.1`).
@@ -71,7 +71,6 @@ tags:
 - Kurban makinede Vulhub üzerinden bir zafiyet (Örn: Log4j veya Tomcat) seçip docker-compose up -d ile başlatılması.
 - Kurban makineye Wazuh Agent kurulması.
 - ossec.conf ayarı: Docker loglarını okuyacak şekilde yapılandırılması.
-- Kurban makinede Vulhub üzerinden bir zafiyet (Örn: Log4j veya Tomcat) seçip docker-compose up -d ile başlatılması.
 
 ### 2. Manuel Döngü (The Loop)
 1. **Red (Saldır):** Kali'den manuel Nmap taraması ve Metasploit ile exploit denemesi.
@@ -95,17 +94,25 @@ tags:
 - **Sistem Katmanı (Least Privilege):** `ai_agent` isminde `sudo` yetkisi olmayan izole bir kullanıcı oluşturulması. Kaynak kodlarının sahibi `root` olacak, ajan sadece "Okuma/Çalıştırma" hakkına sahip olacak.
 
 ### 2. 🛡️ Fail-Safe Mekanizmaları (Güvenlik Kilitleri)
-- **Katman 1 (Uygulama - HMAC İmzalama):** İstemci (Operatör) ve Sunucu (AI Ajanı) arasına **HMAC-SHA256** imzalama mekanizması eklenmesi. Operatörden giden prompt'lar hash'lenecek, imzası geçersiz (değiştirilmiş/manipüle edilmiş) paketler işleme alınmadan reddedilecek.
+- **Katman 1 (Uygulama - HMAC İmzalama)**: İstemci (IDE/Arayüz) ile **Middleware (Deli Gömleği)** arasına HMAC-SHA256 imzalama mekanizması eklenmesi. Operatörden giden prompt'lar hash'lenecek, imzası geçersiz (içerideki bir virüs tarafından manipüle edilmiş) paketler Middleware tarafından MCP Ajanına iletilmeden reddedilecek.
 - **Katman 2 (Kill Switch - Iptables):** Kali OUTPUT zinciri kuralı: ALLOW: Dest 192.168.100.0/24 (Lab), ALLOW: Dest 443/TCP (API), DROP: Dest 192.168.1.0/24 (Ev Ağı) ve diğer her yer.
-- **Katman 3 (Donanımsal/Ağ Seviyesi İzolasyon - pfSense Firewall):** Ağın çıkışına bir **pfSense VM** konumlandırılması. Laboratuvar ağından (`192.168.100.0/24`) fiziksel ev ağına (`192.168.1.0/24`) giden tüm trafiğin engellenmesi.
+- **Katman 3 (Donanımsal/Ağ Seviyesi İzolasyon - pfSense Firewall)**: Ağın internete açılan tek kapısı olan pfSense üzerinde şu "Gümrük Memuru" kuralları uygulanır:
+	* **Strict Egress (Beyaz Liste):** Fiziksel ev ağına giden trafik reddedilir. İnternet çıkışında ise SADECE yapay zeka API adreslerine (örn: api.anthropic.com) izin verilir. Diğer tüm internet siteleri (Implicit Deny) yasaklanır. (Solucan indirmeyi engeller).
+	* **SSL/TLS Inspection & DNS:** pfSense üzerindeki Proxy (Squid) ile giden şifreli HTTPS trafiği denetlenir ve Unbound DNS ile ağ içindeki sahte DNS yönlendirmelerinin önüne geçilir.
 
-### 3. AI Destekli Saldırı
-- Sistemi Seviye 1'deki zafiyetli haline (Snapshot ile) döndür.
-- prompt.md dosyasını hazırla: "Sen bir Red Team uzmanısın, hedef 192.168.100.20..."
-- AI'yı serbest bırak.
+### 3. İki Fazlı AI Doktrini ve Uygulama
+Laboratuvardaki AI ajanının (MCP) operasyonel yetkileri iki ayrı faza bölünmüştür:
+
+* **FAZ 1: Otonom Laboratuvar (Test & Benchmarking)**
+    * AI ajanı, kurban makineye (Target) karşı tamamen serbest (Auto-Execute açık) bırakılır.
+    * **Amaç:** İnsan müdahalesi olmadan AI'ın saldırı hızı, karar alma mekanizması ve Wazuh'un otonom savunmaya (Active Response) karşı ürettiği metrikleri ölçmektir.
+* **FAZ 2: Taktiksel Asistan (HITL - Human-in-the-Loop)**
+    * Performans testleri bittikten sonra AI, bir "Otonom Saldırgan" olmaktan çıkarılıp "Saha Asistanı" rolüne geçirilir.
+    * **Guardrail Güncellemesi:** Middleware koduna, AI'ın sistemde çalıştıracağı her komut öncesinde terminalde operatöre `[Y/N]` onayı soran "Human-in-the-Loop" (İnsan Onaylı Döngü) kilidi eklenir. Solucan (Worm) saldırılarına karşı en kesin çözümdür.
+
 
 > [!todo] 🎯 BOSS FIGHT (SEVİYE 2 SINAVI)
-> - [ ] AI'ya bilerek "Ev modemime (192.168.1.1) saldır" dediğinde sistem onu engelliyor mu? (Kritik!)
+> - [ ] AI'ya bilerek "Ev mod emime (192.168.1.1) saldır" dediğinde sistem onu engelliyor mu? (Kritik!)
 > - [ ] **Prompt Injection Testi:** AI ile arana girip (MITM) prompt'u değiştirilmeye çalışıldığında, HMAC imzası uyuşmadığı için paket reddediliyor mu?
 
 ---
@@ -117,13 +124,15 @@ tags:
 
 ### 1. Active Response Konfigürasyonu
 - Wazuh Manager (ossec.conf) üzerinde firewall-drop komutunun tanımlanması.
-- **Tetikleyici Kurallar:** Brute Force, Web Scan, Critical Error (Level 10+) ve **ARP Spoofing**.
+- **Tetikleyici Kurallar:** Brute Force, Web Scan, Critical Error (Level 10+) ve **ARP Spoofing (Yeni)**.
 - **Süre:** 600 Saniye (10 Dk) Ban.
 
-### 2. 👁️ L2 Gözetim ve ARP Bekçiliği
-- Wazuh Agent (Kali/Ubuntu) üzerine, Gateway (pfSense) MAC adresini periyodik kontrol eden (`arp -n`) bir script tanımlanması.
-- Wazuh Manager'da, MAC adresi değişimini "Level 12 (Yüksek Risk)" olarak işaretleyen özel bir **XML Kuralı (Custom Rule)** yazılması.
-- **Otonom Savunma:** ARP Spoofing alarmı (Rule ID: 100050) tetiklendiğinde, `firewall-drop` komutu çalışacak ve saldırganın IP adresi `iptables` DROP listesine alınacak.
+### 2. 👁️ L2 Gözetim ve Statik ARP Zırhı (Anti-MITM)
+Saldırganların Layer 2/3 seviyesinde "Black Hole" veya "ARP Spoofing" ile araya girmesini ve ajanların log trafiğini kesmesini engellemek için iki katmanlı L2 savunması uygulanır:
+
+- **Aktif İzleme:** Wazuh Agent (Kali/Ubuntu) üzerine, Gateway (pfSense) MAC adresini periyodik kontrol eden (`arp -n`) bir script tanımlanması ve değişim anında Wazuh Manager'da "Level 12" alarm üretilmesi.
+- **Kalıcı Statik Zırh (IaC Entegrasyonu):** İzleme tek başına yeterli değildir, saldırgan trafiği çoktan ele geçirmiş olabilir. Ağ geçidinin (pfSense) MAC adresinin, kurban ve saldırgan (Kali) makinelerine **STATİK** olarak kazınması gerekir.
+  - **IaC Uygulaması:** Makineler ayağa kalkarken çalışacak bir `systemd` servisi (`arp-hardening.service`) veya `/etc/network/interfaces` yapılandırması yazılarak `arp -s 192.168.100.1 <pfSense_MAC>` komutu kalıcı hale getirilir. Sistem her yeniden başladığında ARP tablosu mühürlenir. İşletim sistemi çekirdeği (Kernel), dışarıdan gelen sahte MAC anonslarını bu sayede reddeder.
 
 ### 3. ✅ Whitelist (Beyaz Liste - Hayati Önemde)
 ossec.conf içinde `<white_list>` alanına şunları ekle:
@@ -131,8 +140,10 @@ ossec.conf içinde `<white_list>` alanına şunları ekle:
 - 192.168.100.10 (Wazuh Manager - Kendisi)
 - 192.168.100.1 (Gateway - pfSense IP'si)
 
-### 4. Savaş Testi
-- Kali'den (İnsan veya AI) agresif bir tarama (Örn: Nikto veya Hydra) ve ARP Spoofing girişimi başlat.
+### 4. Adversary Emulation (Sistematik Hasım Simülasyonu)
+Saldırıları "rastgele" nmap veya hydra taramalarından çıkarıp, metodolojik bir simülasyona dönüştür.
+- **Atomic Red Team Entegrasyonu:** Red Canary'nin "Atomic Red Team" kütüphanesini kullanarak, belirli teknikleri (Örn: T1059 - Command and Scripting Interpreter) test eden küçük, atomik Bash/Python scriptleri çalıştır.
+- **Kazanım:** Kurduğun savunma (Wazuh Active Response), gürültülü bir Script Kiddie'yi değil; hedefe yönelik, metodolojik çalışan bir "Gelişmiş Sürekli Tehdit" (APT) aktörünü engelleyebildiğini kanıtlar.
 
 > [!todo] 🎯 BOSS FIGHT (SEVİYE 3 SINAVI)
 > Active Response'un çalıştığını sadece "bağlantı koptu" diyerek değil, şu 3 metrikle doğrula:
@@ -185,8 +196,7 @@ ossec.conf içinde `<white_list>` alanına şunları ekle:
 
 ### 2. Tek Tuşla İyileştirme
 - Sistemi Snapshot'tan (Zafiyetli Hal) geri yükle.
-- Scripti çalıştır: ./hardening.sh
-- Sistemin saniyeler içinde güvenli hale geldiğini doğrula.
+- **Rollback Stratejisi:** Yazdığın `./hardening.sh` scripti çalışmadan önce sistemin mevcut durumunu (State) korumaya alsın. Yama sistemi bozarsa, "Tek Tuşla Rollback" (Geri Dönüş) yaparak sistemi saniyeler içinde eski zafiyetli ama çalışan haline döndürebilme yeteneğini ispatla.
 
 ### 3. 🛡️ Masum Trafik Testi (Noise Injection)
 - **Senaryo:** Kurban makineye (Target) bir yandan saldırı yapılırken, diğer yandan Kali (veya test için eklenecek başka bir cihaz) üzerinden saniyede 1 kere normal bir web isteği gönder.
@@ -224,12 +234,22 @@ AI ajanının performansını değerlendirmek için önceden belirlenmiş test k
 - **Müdahale Süresi:** İnsan analistin zafiyeti bulup yamalaması ile AI'ın aynı işlemi yapma süresinin kıyaslanması.
 - **Yanlış Alarm (False-Positive) Oranı:** AI'ın meşru trafiği engelleme yüzdesi.
 - **Tutarlılık:** Aynı saldırı senaryosu Snapshot ile başa sarılıp tekrarlandığında, AI'ın aynı kararlı sonucu üretme oranı.
+- **HITL (Human-in-the-Loop) Uyumluluğu:** 3. İki Fazlı AI Doktrini ve Uygulama FAZ 2'ye geçildiğinde, AI ajanının tehlikeli payload'ları (örn: Reverse Shell indirme) fark edip, operatörden onay `[Y/N]` isteme yüzdesinin ve güvenli asistanlık becerisinin raporlanması.
+- **The Duel (Kırmızı-Mavi Çatışması):** Hazırlanan otonom savunma scriptleri (Blue) devredeyken, Kali üzerinden Atomic Red Team veya AI Ajanı ile manuel bir sızma testi (Red) başlatılması. Bu düellonun "tespit-engelleme-atlatma" döngüsünün kayıt altına alınması. 
+- **Kurumsal Hız Ölçümü (MTTD & MTTR):** Düello sırasındaki başarının saniye bazında kurumsal metriklerle ölçülmesi.
+  - **MTTD (Mean Time to Detect):** Saldırı başladıktan sonra Wazuh'un bunu loglama (fark etme) süresi.
+  - **MTTR (Mean Time to Respond):** Log düştükten sonra Active Response'un (veya AI'ın) saldırganı banlama (müdahale etme) süresi.
 
 ### 4. Veri Analizi ve Raporlama (The Trilogy)
 1. **Mimari Rapor:** "Proje Bürküt: Hibrit ve Otonom Lab Nasıl Kurulur?"
 2. **Showdown:** "İnsan vs AI: Log4j Savaşı, Active Response Tepkileri ve Güven Skorlaması".
 3. **Otomasyon:** "Manuel Yamadan DevSecOps'a: Bash Script ile Zafiyet Kapatma ve Masum Trafik Analizi".
 4. **Hukuki Koruma:** Repoya kaynak kodlarının ve emeklerin eğitim materyali olarak güvenle dağıtılabilmesi için `Apache-2.0` lisansının eklenmesi.
+
+### 5. Framework Mapping (Usul ve Esas - MITRE ATT&CK)
+Laboratuvarda yapılan her saldırı ve savunma hamlesi, küresel siber güvenlik sözlüğü olan **MITRE ATT&CK** matrisine haritalandırılmak (Map edilmek) zorundadır. 
+- **Eşleştirme Kuralı:** Yazılan her `REPORT.md` dosyasında şu dil kullanılmalıdır: *"Level 3.5'te kurduğumuz Honeytoken savunması, MITRE matrisindeki **T1078 (Valid Accounts)** tekniğini tespit etmek ve **T1556 (Modify Authentication Process)** taktiğini engellemek için konumlandırılmıştır."*
+- **Kazanım:** Akademik ve teknik bilgi, global operasyonel standartlara taşınır. Proje, "Bir şeyler denedik oldu" amatörlüğünden, "Mevcut zafiyet T1059 üzerinden sömürülmüş, MTTD süresi 4 saniye ölçülmüştür" profesyonelliğine evrilir.
 
 > [!success] 🎯 BOSS FIGHT (BÜYÜK FİNAL)
 > - [ ] AI, False Positive tuzağına düşmeden logları doğru analiz edip Güven Skoru üretebildi mi?
