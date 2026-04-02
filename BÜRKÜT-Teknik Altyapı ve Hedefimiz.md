@@ -1,129 +1,87 @@
-# 🦅 BÜRKÜT: TEKNİK ALTYAPI VE HEDEFLENEN MİMARİ (v2.0)
+# 🦅 BÜRKÜT: TEKNİK ALTYAPI VE HEDEFLENEN MİMARİ (v3.0)
 
-> [!abstract] Mimari Vizyon BÜRKÜT; geleneksel zafiyet tarama laboratuvarlarının ötesine geçerek, **Yapay Zeka (MCP)** ajanlarının otonom saldırı ve savunma yeteneklerini **Kurumsal DMZ** standartlarında test eden, **DevSecOps** kaslarını geliştiren ve "Infrastructure as Code" (IaC) felsefesiyle yaşayan bir **Purple Team** ekosistemidir.
+**Mimari Vizyon** BÜRKÜT; geleneksel zafiyet tarama laboratuvarlarının ötesine geçerek, Yapay Zeka (MCP) ajanlarının otonom saldırı ve savunma yeteneklerini Kurumsal DMZ standartlarında test eden, "Aldatma (Deception)" ve "Davranışsal Zeka (UEBA)" konseptlerini barındıran, DevSecOps kaslarını geliştiren ve "Infrastructure as Code" (IaC) felsefesiyle yaşayan yeni nesil bir Purple Team ekosistemidir.
 
----
+### 🏗️ 1. AĞ TOPOLOJİSİ VE İZOLASYON
 
-## 🏗️ 1. AĞ TOPOLOJİSİ VE İZOLASYON
+Proje, VMware Workstation Pro üzerinde, dış dünyadan tamamen izole edilmiş ancak kendi içinde kurumsal bir hiyerarşiye sahip hibrit bir ağ yapısında çalışır.
 
-Proje, **VMware Workstation Pro** üzerinde, dış dünyadan tamamen izole edilmiş ancak kendi içinde kurumsal bir hiyerarşiye sahip hibrit bir ağ yapısında çalışır.
+**Ağ Katmanları**
 
-### **Ağ Katmanları**
-
-- **WAN (Dış Dünya):** `VMnet0` (Bridged/NAT). Sadece pfSense'in dış bacağı buraya bağlıdır.
+- **WAN (Dış Dünya):** VMnet0 (Bridged/NAT). Sadece OPNsense'in dış bacağı buraya bağlıdır.
     
-- **LAN (BÜRKÜT Lab - Kurumsal DMZ):** `VMnet2` (Host-Only).
+- **LAN (BÜRKÜT Lab - Kurumsal DMZ):** VMnet2 (Host-Only).
     
     - **Subnet:** `192.168.100.0/24`
         
     - **DHCP:** KAPALI (Statik IP Yönetimi).
         
-    - **Erişim Kuralı:** Bu ağdaki hiçbir makine, pfSense izni olmadan birbirine veya dışarıya (İnternet) erişemez.
+    - **Erişim Kuralı:** Bu ağdaki hiçbir makine, OPNsense izni olmadan birbirine veya dışarıya (İnternet) erişemez. Çekirdek seviyesinde Statik ARP zırhı ile L2 manipülasyonları engellenir.
         
 
----
-
-## 💻 2. SİSTEM BİLEŞENLERİ VE ROLLER
+### 💻 2. SİSTEM BİLEŞENLERİ VE ROLLER
 
 Laboratuvar 4 ana aktör (Sanal Makine) üzerine inşa edilmiştir:
 
-### **A. KALE KOMUTANI (Gateway & Firewall)**
+**A. KALE KOMUTANI (Gateway & Firewall)**
 
-- **İşletim Sistemi:** pfSense (FreeBSD)
+- **İşletim Sistemi:** OPNsense (HardenedBSD)
     
 - **IP Adresi:** `192.168.100.1` (LAN Gateway)
     
-- **Görevi:**
+- **Görevi:** Ağın tek giriş-çıkış kapısıdır. L3/L4/L7 seviyesinde trafik denetimi yapar. AI ajanının "halüsinasyon" görüp internete veya ev ağına sızmasını engelleyen donanımsal kill-switch görevi görür. TLS Inspection ve Strict Egress kurallarını yönetir.
     
-    - Ağın tek giriş-çıkış kapısıdır.
-        
-    - L3/L4 seviyesinde trafik denetimi yapar.
-        
-    - AI ajanının "halüsinasyon" görüp internete veya ev ağına sızmasını engelleyen donanımsal kill-switch görevi görür.
-        
 
-### **B. GÖZETLEME KULESİ (SIEM & Defense)**
+**B. GÖZETLEME KULESİ (SIEM & Defense)**
 
 - **İşletim Sistemi:** Ubuntu Server (Wazuh Server)
     
-- **IP Adresi:** `192.168.100.50`
+- **IP Adresi:** `192.168.100.10`
     
-- **Görevi:**
+- **Görevi:** Tüm ajanlardan logları toplar, MAC adresi değişimlerini (ARP Bekçiliği) izler. Saldırı veya anomali tespit edildiğinde OPNsense API'si üzerinden saldırganı otonom olarak banlar (Active Response).
     
-    - Tüm ajanlardan (Kali ve Ubuntu) logları toplar.
-        
-    - **Active Response:** Saldırı tespit edildiğinde (örn: Brute Force, Web Attack) saldırganı otomatik olarak banlar.
-        
-    - **The Trilogy (3'lü Doğrulama):** Savunma başarısını sadece "Alert" ile değil; 1) Log, 2) Firewall State, 3) Servis Sağlığı metrikleriyle kanıtlar.
-        
 
-### **C. SALDIRGAN VE AI OPERATÖRÜ (Red Team)**
+**C. SALDIRGAN VE AI OPERATÖRÜ (Red Team)**
 
 - **İşletim Sistemi:** Kali Linux
     
-- **IP Adresi:** `192.168.100.20`
+- **IP Adresi:** `192.168.100.5`
     
-- **İçindeki Araçlar:**
+- **İçindeki Araçlar:** * **AI Agent (MCP):** Claude/OpenAI tabanlı otonom sızma testi ajanı.
     
-    - **AI Agent (MCP):** Claude/OpenAI tabanlı otonom sızma testi ajanı.
+    - **Python Middleware:** İstemci ile Ajan arasında HMAC-SHA256 imzalaması yaparak prompt manipülasyonunu (Hijacking) önleyen güvenlik katmanı.
         
-    - **Python Middleware:** AI ile işletim sistemi arasında duran, komutları filtreleyen "Güvenlik Katmanı".
-        
-    - **Strict Egress (iptables):** Makinenin sadece `192.168.100.10` (Hedef) ve API uç noktalarıyla konuşmasına izin veren sıkı ağ kuralları.
+    - **Least Privilege:** AI ajanı, sistemde `sudo` yetkisi olmayan izole bir `ai_agent` kullanıcısı ile kısıtlı çalışır.
         
 
-### **D. KURBAN VE TEST SAHASI (Target)**
+**D. KURBAN VE TEST SAHASI (Target)**
 
 - **İşletim Sistemi:** Ubuntu Server
     
-- **IP Adresi:** `192.168.100.10`
+- **IP Adresi:** `192.168.100.20`
     
-- **Mimari:**
-    
-    - Doğrudan OS üzerinde zafiyet barındırmaz.
-        
-    - **Docker Konteynerleri:** DVWA, Juice Shop, Log4j gibi zafiyetli uygulamalar izole konteynerler içinde ayağa kaldırılır.
-        
-    - Wazuh Agent ile sürekli izlenir (FIM - Dosya Bütünlüğü Takibi).
-        
-
----
-
-## 🛡️ 3. TEMEL GÜVENLİK DOKTRİNLERİ
-
-BÜRKÜT, sadece toolları çalıştırmak değil, bir "Mühendislik Felsefesi" oturtmak üzerine kuruludur:
-
-### **1. The Trilogy (Üçlü Doğrulama Prensibi)**
-
-Bir savunma hamlesinin (Active Response) başarılı sayılması için 3 şart aranır:
-
-1. **SIEM Alert:** Wazuh "Tehdit engellendi" logunu üretmeli.
-    
-2. **State Change:** Firewall veya iptables kurallarında IP'nin banlandığı görülmeli.
-    
-3. **Innocent Traffic Test:** Saldırgan engellenirken, masum kullanıcının (Noise Traffic) erişimi kesintisiz devam etmeli (Servis sürekliliği).
+- **Mimari:** Doğrudan OS üzerinde zafiyet barındırmaz. DVWA, Juice Shop, Log4j gibi uygulamalar Vulhub üzerinden izole Docker konteynerleri içinde ayağa kaldırılır.
     
 
-### **2. Guardrails (AI Güvenlik Kilitleri)**
+### 🛡️ 3. İLERİ GÜVENLİK DOKTRİNLERİ
 
-Yapay zekanın kontrolden çıkmasını önlemek için 2 katmanlı kilit sistemi uygulanır:
+BÜRKÜT, toolları çalıştırmanın ötesinde, modern siber güvenlik tehditlerine karşı kapsamlı bir "Mühendislik Felsefesi" sunar:
 
-- **Yazılımsal Kilit (Middleware):** AI'ın ürettiği komutlar önce Python scripti tarafından taranır. "rm -rf", "shutdown" gibi yıkıcı komutlar reddedilir.
+**1. Aldatma Mimarisi (Deception & Honeypot)** Savunma, sadece bloklamak yerine saldırganı oyalamak üzerine kuruludur. Ağda gerçekte olmayan sahte IP'ler (Network Decoys) ve yapılandırma dosyalarına gizlenmiş sahte şifreler (Honeytokens) barındırır. Bu tuzaklara dokunulması, saldırganı anında ifşa eder.
+
+**2. Davranışsal Zeka ve Anti-Zehirlenme (UEBA)** Sistem; operatörün komut sözlüğünü, kullanım saatlerini ve klavye dinamiklerini öğrenerek bir "Risk Skoru" oluşturur. Yapay zeka modellerinin veya öğrenme sistemlerinin manipüle edilmesini (Poisoning) önlemek için, tuzaklara düşüldüğü an öğrenme modu kapatılır ve sistem "İnfaz Modu"na (Trap-Triggered Freeze) geçer.
+
+**3. Üçlü Doğrulama Prensibi (The Trilogy) & Masum Trafik** Bir savunma hamlesinin (Active Response) başarılı sayılması için 3 şart aranır:
+
+- **SIEM Alert:** Wazuh "Tehdit engellendi" logunu üretmeli.
     
-- **Ağ Kilidi (pfSense & iptables):** AI ajanı istese bile `192.168.1.x` (Ev Ağı) bloğuna paket gönderemez; paketler Gateway seviyesinde düşürülür (DROP).
+- **State Change:** OPNsense veya iptables kurallarında IP'nin banlandığı görülmeli.
     
-
-### **3. IaC ve Kalıcı İyileştirme**
-
-Zafiyet bulunduğunda süreç şöyle işler:
-
-- **Manuel Analiz:** Önce elle sömürülür ve analiz edilir.
-    
-- **Otomasyon:** Çözüm, bir Bash veya Ansible scriptine (Hardening Script) dönüştürülür.
-    
-- **Self-Correction:** Sistem bir sonraki kurulumda bu script ile "Doğuştan Güvenli" (Secure by Design) olarak ayağa kalkar.
+- **Innocent Traffic Test (Noise Injection):** Saldırgan engellenirken, meşru HTTP istekleri sisteme kesintisiz ulaşmaya devam etmeli (Granüler engelleme).
     
 
----
+**4. Kurumsal Metrikler ve MITRE ATT&CK** Proje, yapılan her saldırı ve savunma testini rastgelelikten çıkarır. Gelişen olaylar **MTTD** (Tespit Süresi) ve **MTTR** (Müdahale Süresi) metrikleriyle saniye bazında ölçülür. Yapılan tüm ataklar ve defansif kilitler **MITRE ATT&CK** matrisindeki Taktik ve Teknik ID'leri (Örn: T1059, T1556) ile haritalandırılarak küresel standartlara uygun raporlanır.
 
-> [!check] Sonuç Bu altyapı; bir siber güvenlik öğrencisinin "Script Kiddie" seviyesinden, sistemin mimarisini ve ruhunu anlayan bir **"Güvenlik Mimarı"** seviyesine evrilmesi için tasarlanmıştır.
+**5. IaC ve Kalıcı İyileştirme (DevSecOps)** Zafiyetler önce manuel analizle sömürülür. Çözüm bulunduğunda bu işlem bir Bash/Ansible scriptine (Hardening) dönüştürülür. Sistem, API ve CLI otomasyonları ile "Tek Tuşla İyileştirme" ve gerektiğinde "Tek Tuşla Geri Alma (Rollback)" yeteneğine sahiptir.
+
+**Sonuç:** Bu altyapı; bir mühendis adayının sadece bir sistemi kıran değil, sistemin mimarisini, davranışsal anormalliklerini ve otonom savunma reflekslerini derinlemesine anlayan bir **"Güvenlik Mimarı"** seviyesine evrilmesi için tasarlanmıştır.
