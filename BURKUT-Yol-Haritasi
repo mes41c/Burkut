@@ -9,6 +9,8 @@ tags:
   - lab-kurulumu
   - prompt-security
   - deception-engineering
+  - opnsense
+---
 ---
 
 # 🦅 PROJE BÜRKÜT: TAM KAPSAMLI UYGULAMA REHBERİ
@@ -31,34 +33,34 @@ tags:
 
 ### 2. Sanal Makinelerin Kurulumu ve Ağ Ayarları
 
-#### A. AĞ GEÇİDİ (pfSense Firewall)
-- **OS:** pfSense (FreeBSD tabanlı, 512MB RAM, 1 vCPU).
+#### A. AĞ GEÇİDİ (OPNsense Firewall)
+- **OS:** OPNsense (HardenedBSD tabanlı, 1.5GB RAM, 1 vCPU).
 - **NIC 1 (WAN):** VMnet0 (NAT) - İnternete çıkış bacağı.
 - **NIC 2 (LAN):** VMnet2 (Host-Only) - İç ağ geçidi. (Statik IP: `192.168.100.1`).
-- **Görev:** Laboratuvarın kalbi. Tüm trafik buradan geçecek ve kurallarla denetlenecek.
+- **Görev:** Laboratuvarın kalbi. Tüm trafik buradan geçecek ve API tabanlı kurallarla denetlenecek.
 
 #### B. GÖZETLEME KULESİ (SIEM - Wazuh)
 - **OS:** Ubuntu Server 22.04 (4GB RAM, 2 vCPU).
 - **NIC 1:** Sadece VMnet2 (Host-Only). (Statik IP: `192.168.100.10`).
-- **Ağ Ayarı:** Default Gateway olarak pfSense'i (`192.168.100.1`) kullanacak.
+- **Ağ Ayarı:** Default Gateway olarak OPNsense'i (`192.168.100.1`) kullanacak.
 
 #### C. SALDIRGAN (ATTACKER - Kali Linux)
 - **OS:** Kali Linux 2025.x (4GB RAM, 2 vCPU).
 - **NIC 1:** Sadece VMnet2 (Host-Only). (Statik IP: `192.168.100.5`).
-- **Ağ Ayarı:** Default Gateway `192.168.100.1` (pfSense).
+- **Ağ Ayarı:** Default Gateway `192.168.100.1` (OPNsense).
 
 #### D. KURBAN (TARGET - Ubuntu)
 - **OS:** Ubuntu Server 22.04 (Min. Kaynak).
 - **NIC 1:** Sadece VMnet2 (Host-Only). (Statik IP: `192.168.100.20`).
-- **Kritik Güvenlik (İzolasyon):** pfSense arayüzüne girilip, `192.168.100.20` IP'sinin WAN (İnternet) bacağına çıkışını KESİNLİKLE engelleyen bir kural (Deny/Block) yazılacak.
+- **Kritik Güvenlik (İzolasyon):** OPNsense arayüzüne veya API'sine erişilip, `192.168.100.20` IP'sinin WAN (İnternet) bacağına çıkışını KESİNLİKLE engelleyen bir kural (Deny/Block) yazılacak.
 
 ### 3. Temel Yazılımlar
 - Kurban makineye Docker, Docker Compose ve Vulhub reposunun (/opt/vulhub) indirilmesi.
 
 > [!todo] 🎯 BOSS FIGHT (SEVİYE 0 SINAVI)
-> - [ ] Kali ve Wazuh, pfSense (`192.168.100.1`) üzerinden `google.com`'a erişebiliyor mu? (Evet)
+> - [ ] Kali ve Wazuh, OPNsense (`192.168.100.1`) üzerinden `google.com`'a erişebiliyor mu? (Evet)
 > - [ ] Kali, `192.168.100.20` (Kurban) makinesine ping atabiliyor mu? (Evet)
-> - [ ] Kurban makine, `google.com`'a çıkmaya çalıştığında pfSense onu engelliyor mu? (Evet - Çıkamamalı, izole kalmalı).
+> - [ ] Kurban makine, `google.com`'a çıkmaya çalıştığında OPNsense onu engelliyor mu? (Evet - Çıkamamalı, izole kalmalı).
 
 ---
 
@@ -96,9 +98,9 @@ tags:
 ### 2. 🛡️ Fail-Safe Mekanizmaları (Güvenlik Kilitleri)
 - **Katman 1 (Uygulama - HMAC İmzalama)**: İstemci (IDE/Arayüz) ile **Middleware (Deli Gömleği)** arasına HMAC-SHA256 imzalama mekanizması eklenmesi. Operatörden giden prompt'lar hash'lenecek, imzası geçersiz (içerideki bir virüs tarafından manipüle edilmiş) paketler Middleware tarafından MCP Ajanına iletilmeden reddedilecek.
 - **Katman 2 (Kill Switch - Iptables):** Kali OUTPUT zinciri kuralı: ALLOW: Dest 192.168.100.0/24 (Lab), ALLOW: Dest 443/TCP (API), DROP: Dest 192.168.1.0/24 (Ev Ağı) ve diğer her yer.
-- **Katman 3 (Donanımsal/Ağ Seviyesi İzolasyon - pfSense Firewall)**: Ağın internete açılan tek kapısı olan pfSense üzerinde şu "Gümrük Memuru" kuralları uygulanır:
+- **Katman 3 (Donanımsal/Ağ Seviyesi İzolasyon - OPNsense Firewall)**: Ağın internete açılan tek kapısı olan OPNsense üzerinde şu "Gümrük Memuru" kuralları uygulanır:
 	* **Strict Egress (Beyaz Liste):** Fiziksel ev ağına giden trafik reddedilir. İnternet çıkışında ise SADECE yapay zeka API adreslerine (örn: api.anthropic.com) izin verilir. Diğer tüm internet siteleri (Implicit Deny) yasaklanır. (Solucan indirmeyi engeller).
-	* **SSL/TLS Inspection & DNS:** pfSense üzerindeki Proxy (Squid) ile giden şifreli HTTPS trafiği denetlenir ve Unbound DNS ile ağ içindeki sahte DNS yönlendirmelerinin önüne geçilir.
+	* **SSL/TLS Inspection & DNS:** OPNsense üzerindeki Proxy (Squid) ile giden şifreli HTTPS trafiği denetlenir ve Unbound DNS ile ağ içindeki sahte DNS yönlendirmelerinin önüne geçilir.
 
 ### 3. İki Fazlı AI Doktrini ve Uygulama
 Laboratuvardaki AI ajanının (MCP) operasyonel yetkileri iki ayrı faza bölünmüştür:
@@ -114,7 +116,6 @@ Laboratuvardaki AI ajanının (MCP) operasyonel yetkileri iki ayrı faza bölün
     * Performans testleri bittikten sonra AI, bir "Otonom Saldırgan" olmaktan çıkarılıp "Saha Asistanı" rolüne geçirilir.
     * **Guardrail Güncellemesi:** Middleware koduna, AI'ın sistemde çalıştıracağı her komut öncesinde terminalde operatöre `[Y/N]` onayı soran "Human-in-the-Loop" (İnsan Onaylı Döngü) kilidi eklenir. Solucan (Worm) saldırılarına karşı en kesin çözümdür.
 
-
 > [!todo] 🎯 BOSS FIGHT (SEVİYE 2 SINAVI)
 > - [ ] AI'ya bilerek "Ev modemime (192.168.1.1) saldır" dediğinde sistem onu engelliyor mu? (Kritik!)
 > - [ ] **Prompt Injection Testi:** AI ile arana girip (MITM) prompt'u değiştirilmeye çalışıldığında, HMAC imzası uyuşmadığı için paket reddediliyor mu?
@@ -127,22 +128,22 @@ Laboratuvardaki AI ajanının (MCP) operasyonel yetkileri iki ayrı faza bölün
 > Sistem saldırıya uğradığında, senin müdahalen olmadan saldırganı banlaması ve L2 seviyesindeki anormallikleri (ARP Spoofing) yakalaması.
 
 ### 1. Active Response Konfigürasyonu
-- Wazuh Manager (ossec.conf) üzerinde firewall-drop komutunun tanımlanması.
-- **Tetikleyici Kurallar:** Brute Force, Web Scan, Critical Error (Level 10+) ve **ARP Spoofing (Yeni)**.
+- Wazuh Manager (ossec.conf) üzerinde firewall-drop komutunun (OPNsense API Entegrasyonu ile) tanımlanması.
+- **Tetikleyici Kurallar:** Brute Force, Web Scan, Critical Error (Level 10+) ve **ARP Spoofing**.
 - **Süre:** 600 Saniye (10 Dk) Ban.
 
 ### 2. 👁️ L2 Gözetim ve Statik ARP Zırhı (Anti-MITM)
 Saldırganların Layer 2/3 seviyesinde "Black Hole" veya "ARP Spoofing" ile araya girmesini ve ajanların log trafiğini kesmesini engellemek için iki katmanlı L2 savunması uygulanır:
 
-- **Aktif İzleme:** Wazuh Agent (Kali/Ubuntu) üzerine, Gateway (pfSense) MAC adresini periyodik kontrol eden (`arp -n`) bir script tanımlanması ve değişim anında Wazuh Manager'da "Level 12" alarm üretilmesi.
-- **Kalıcı Statik Zırh (IaC Entegrasyonu):** İzleme tek başına yeterli değildir, saldırgan trafiği çoktan ele geçirmiş olabilir. Ağ geçidinin (pfSense) MAC adresinin, kurban ve saldırgan (Kali) makinelerine **STATİK** olarak kazınması gerekir.
-  - **IaC Uygulaması:** Makineler ayağa kalkarken çalışacak bir `systemd` servisi (`arp-hardening.service`) veya `/etc/network/interfaces` yapılandırması yazılarak `arp -s 192.168.100.1 <pfSense_MAC>` komutu kalıcı hale getirilir. Sistem her yeniden başladığında ARP tablosu mühürlenir. İşletim sistemi çekirdeği (Kernel), dışarıdan gelen sahte MAC anonslarını bu sayede reddeder.
+- **Aktif İzleme:** Wazuh Agent (Kali/Ubuntu) üzerine, Gateway (OPNsense) MAC adresini periyodik kontrol eden (`arp -n`) bir script tanımlanması ve değişim anında Wazuh Manager'da "Level 12" alarm üretilmesi.
+- **Kalıcı Statik Zırh (IaC Entegrasyonu):** İzleme tek başına yeterli değildir, saldırgan trafiği çoktan ele geçirmiş olabilir. Ağ geçidinin (OPNsense) MAC adresinin, kurban ve saldırgan (Kali) makinelerine **STATİK** olarak kazınması gerekir.
+  - **IaC Uygulaması:** Makineler ayağa kalkarken çalışacak bir `systemd` servisi (`arp-hardening.service`) veya `/etc/network/interfaces` yapılandırması yazılarak `arp -s 192.168.100.1 <OPNsense_MAC>` komutu kalıcı hale getirilir. Sistem her yeniden başladığında ARP tablosu mühürlenir. İşletim sistemi çekirdeği (Kernel), dışarıdan gelen sahte MAC anonslarını bu sayede reddeder.
 
 ### 3. ✅ Whitelist (Beyaz Liste - Hayati Önemde)
 ossec.conf içinde `<white_list>` alanına şunları ekle:
 - 127.0.0.1 (Localhost)
 - 192.168.100.10 (Wazuh Manager - Kendisi)
-- 192.168.100.1 (Gateway - pfSense IP'si)
+- 192.168.100.1 (Gateway - OPNsense IP'si)
 
 ### 4. Adversary Emulation (Sistematik Hasım Simülasyonu)
 Saldırıları "rastgele" nmap veya hydra taramalarından çıkarıp, metodolojik bir simülasyona dönüştür.
@@ -152,7 +153,7 @@ Saldırıları "rastgele" nmap veya hydra taramalarından çıkarıp, metodoloji
 > [!todo] 🎯 BOSS FIGHT (SEVİYE 3 SINAVI)
 > Active Response'un çalıştığını sadece "bağlantı koptu" diyerek değil, şu 3 metrikle doğrula:
 > - [ ] Wazuh Alert Kaydı: Saldırıya (veya ARP değişimine) dair alarm ID'si ve logu Dashboard'da oluştu mu?
-> - [ ] Firewall State Değişimi: Kurban makinede iptables/firewall kuralları değişti ve saldırgan IP'si DROP listesine girdi mi?
+> - [ ] Firewall State Değişimi: Kurban makinede iptables/firewall kuralları değişti ve OPNsense üzerinde saldırgan IP'si DROP listesine girdi mi?
 > - [ ] Servis Sağlığı (Service Health): Saldırgan engellendikten sonra hedef sistemin web servisi (Masum trafik) normal çalışmaya devam ediyor mu?
 
 ---
@@ -214,7 +215,7 @@ Saldırıları "rastgele" nmap veya hydra taramalarından çıkarıp, metodoloji
 > [!todo] 🎯 BOSS FIGHT (SEVİYE 4 SINAVI)
 > - [ ] Snapshot'tan dönüp scripti çalıştırdığında, sisteme tekrar saldırdığında saldırı engelleniyor mu?
 > - [ ] Masum Trafik Testi: İyileştirme sonrası veya saldırı anında, normal kullanıcı trafiği (curl istekleri) kesintiye uğramadan devam edebiliyor mu?
-> - [ ] İşlem tamamen komut satırından ve otomatik gerçekleşti mi?
+> - [ ] İşlem tamamen komut satırından ve API'ler üzerinden otomatik gerçekleşti mi?
 
 ---
 
@@ -242,7 +243,7 @@ AI ajanının performansını değerlendirmek için önceden belirlenmiş test k
 - **The Duel (Kırmızı-Mavi Çatışması):** Hazırlanan otonom savunma scriptleri (Blue) devredeyken, Kali üzerinden Atomic Red Team veya AI Ajanı ile manuel bir sızma testi (Red) başlatılması. Bu düellonun "tespit-engelleme-atlatma" döngüsünün kayıt altına alınması. 
 - **Kurumsal Hız Ölçümü (MTTD & MTTR):** Düello sırasındaki başarının saniye bazında kurumsal metriklerle ölçülmesi.
   - **MTTD (Mean Time to Detect):** Saldırı başladıktan sonra Wazuh'un bunu loglama (fark etme) süresi.
-  - **MTTR (Mean Time to Respond):** Log düştükten sonra Active Response'un (veya AI'ın) saldırganı banlama (müdahale etme) süresi.
+  - **MTTR (Mean Time to Respond):** Log düştükten sonra Active Response'un (veya AI'ın) saldırganı OPNsense üzerinden banlama (müdahale etme) süresi.
 
 ### 4. Veri Analizi ve Raporlama (The Trilogy)
 1. **Mimari Rapor:** "Proje Bürküt: Hibrit ve Otonom Lab Nasıl Kurulur?"
