@@ -163,10 +163,12 @@ Saldırıları "rastgele" nmap veya hydra taramalarından çıkarıp, metodoloji
 > [!info] Amaç
 > Savunmayı pasif engellemeden çıkarıp; saldırganı aldatan, davranışlarını öğrenen ve manipülasyona karşı kendini kilitleyen (Anti-Poisoning) aktif bir yapıya dönüştürmek.
 
-### 1. Aldatma Mimarisi: Gölge ve Yem (Deception)
+### 1. Aldatma Mimarisi ve CTI Zenginleştirmesi (Deception & Intel)
 
 - **Network Decoy (Ağ Yemi):** Ağda var olmayan IP adresleri (Hayalet Varlıklar) için ARP cevapları üreten script. Gerçek sunucuyu gizler, saldırganı oyalar.
 - **Embedded Honeytoken (Gömülü Yem):** `config.yaml` dosyasına sahte bir "Secret Key" gömülmesi. Bu anahtar kullanıldığı an (Honeytoken Trigger) sessiz alarm üretilmesi.
+- **Etkileşimli Honeypot (Cowrie):** Kurban makineye veya ayrı bir Docker konteynerine Cowrie SSH/Telnet Honeypot kurulması. Saldırganın girdiği sahte şifreler ve indirmeye çalıştığı zararlı yazılımlar (malware payload) izole bir alanda yakalanır.
+- **Otonom İstihbarat (CTI) Zenginleştirmesi:** Cowrie'ye düşen veya Wazuh'un yakaladığı şüpheli IP'ler ve dosya Hash'leri, yazılacak bir entegrasyon scripti ile otomatik olarak **VirusTotal** ve **AbuseIPDB** API'lerine sorgulanır. Sonuçlar Wazuh Dashboard'a "Tehdit İstihbaratı" etiketiyle yansıtılır.
 
 ### 2. Protokol ve Trafik Anomalisi Tespiti (Anti-Tunneling)
 
@@ -212,6 +214,11 @@ Saldırıları "rastgele" nmap veya hydra taramalarından çıkarıp, metodoloji
 - Kendi hardening.sh scriptini yazdıktan hemen sonra AI Ajanına dön ve şu tarz bir prompt gir: "Hedef sistemde Log4j zafiyeti buldum. Bu sistemi kod ve konfigürasyon seviyesinde güvenli hale getirmek için bana bir Bash script (IaC) veya konfigürasyon önerisi verir misin?"
 - Ardından AI'nın verdiği yama önerisi ile kendi yazdığın scripti kıyasla.
 
+### 5. Sistem Optimizasyonu ve Tuning (Resource Management)
+Savunma sistemlerinin kendi ağırlığı altında çökmesini engellemek için operasyonel optimizasyonların yapılması.
+- **Kural Optimizasyonu (Rule Tuning):** Wazuh Manager üzerinde, laboratuvar ortamında bulunmayan servislere (örn: Windows, IIS, macOS) ait kural setlerinin (Rule ID) kapatılarak CPU/RAM yükünün ve False Positive ihtimalinin azaltılması.
+- **Log Yaşam Döngüsü (ILM - Index Lifecycle Management):** Disk doluluğu (Storage Exhaustion) kaynaklı sistem çökmelerini önlemek için, Elasticsearch/Indexer tarafında 30 günden eski logları otomatik silen veya arşivleyen (Data Retention) politikaların devreye alınması.
+
 > [!todo] 🎯 BOSS FIGHT (SEVİYE 4 SINAVI)
 > - [ ] Snapshot'tan dönüp scripti çalıştırdığında, sisteme tekrar saldırdığında saldırı engelleniyor mu?
 > - [ ] Masum Trafik Testi: İyileştirme sonrası veya saldırı anında, normal kullanıcı trafiği (curl istekleri) kesintiye uğramadan devam edebiliyor mu?
@@ -229,8 +236,9 @@ Saldırıları "rastgele" nmap veya hydra taramalarından çıkarıp, metodoloji
 - Prompt: "Sistemi güncelledim. Tekrar dene. Hâlâ girebiliyor musun?"
 - AI'dan "Giremiyorum, sistem güvenli" onayını al.
 
-### 2. 🧠 AI Güven Skoru (Confidence Scoring) Testi
-- **Senaryo:** AI Ajanına, saldırı olmayan ama "şüpheli" görünen bir log veya senaryo ver.
+### 2. 🧠 AI Güven Skoru (Confidence Scoring) ve Eşik Filtresi
+- **Eşik Filtresi (Thresholding) Entegrasyonu:** Sistemin API maliyetlerini optimize etmek ve AI halüsinasyonunu engellemek için araya bir filtre konulur. Wazuh'tan gelen *her log* AI'a gönderilmez. Sadece **"Level 10 ve üzeri"** kritik alarmlar veya spesifik korelasyonlar (örn: aynı IP'den art arda tetiklenen çoklu anomali) AI ajanına analiz için (Escalation) iletilir.
+- **Senaryo:** Eşik filtresini aşan, saldırı olmayan ama "şüpheli" görünen bir log veya senaryoyu (örn: bir yöneticinin SSH şifresini 2 kere yanlış girip 3. denemede doğru girmesi) AI Ajanına ver.
 - **Amaç:** AI hemen "Bu bir Brute Force, derhal banlayalım!" diyerek False Positive (Hatalı Alarm) tuzağına mı düşüyor, yoksa "Bu muhtemel bir kullanıcı hatası, ancak izlemeye alalım" mantığını mı kuruyor?
 - **Başarı Kriteri:** AI'ın karar mekanizmasını "Eminlik Derecesi" (Confidence Score) belirtecek şekilde yönlendirmek. "Eminlik %90'ın altındaysa sadece Alert üret" mantığını AI'ya uygulatmak.
 
