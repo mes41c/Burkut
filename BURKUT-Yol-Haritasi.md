@@ -11,7 +11,6 @@ tags:
   - deception-engineering
   - opnsense
 ---
----
 
 # 🦅 PROJE BÜRKÜT: TAM KAPSAMLI UYGULAMA REHBERİ
 
